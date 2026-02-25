@@ -107,6 +107,37 @@ html.light .command-suffix {
   color: #e0e7ff;
 }
 
+.mode-switch {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+
+.mode-btn {
+  border: 1px solid transparent;
+  color: #a1a1aa;
+  font-weight: 600;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.mode-btn:hover {
+  background: rgba(99, 102, 241, 0.14);
+  color: #e4e4e7;
+}
+
+.mode-btn.active {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: rgba(129, 140, 248, 0.55);
+  color: #e0e7ff;
+}
+
+html.light .mode-btn {
+  color: #475569;
+}
+
+html.light .mode-btn.active {
+  color: #1e1b4b;
+}
+
 mark {
   background: rgba(250, 204, 21, 0.34);
   color: inherit;

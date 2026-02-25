@@ -72,6 +72,11 @@
           <div id="suggestions" class="absolute left-0 right-0 top-[108%] z-30 hidden rounded-xl border border-white/10 bg-zinc-900/95 p-2 shadow-2xl"></div>
         </div>
 
+        <div id="entry-mode-switch" class="mode-switch glass rounded-xl p-1">
+          <button type="button" data-entry-mode="shortcuts" class="mode-btn rounded-lg px-3 py-2 text-sm">Shortcuts</button>
+          <button type="button" data-entry-mode="commands" class="mode-btn rounded-lg px-3 py-2 text-sm">Commands</button>
+        </div>
+
         <select id="group-mode" class="glass rounded-xl px-3 py-2 text-sm">
           <option value="tool">Group: Tool</option>
           <option value="usage">Group: Usage</option>
@@ -130,6 +135,13 @@
 
         <label class="block text-sm">Category
           <select id="field-category" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2"></select>
+        </label>
+
+        <label class="block text-sm">Entry Type
+          <select id="field-type" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2">
+            <option value="shortcut">Shortcut</option>
+            <option value="command">Command</option>
+          </select>
         </label>
 
         <label class="block text-sm">Program / Tool

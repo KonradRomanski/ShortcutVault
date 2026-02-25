@@ -842,6 +842,10 @@
   }));
 
   const linuxEntries = [
+    ['cd <path>', 'Change current directory to a target path.', 'common', 'basic', ['navigation']],
+    ['cd ~', 'Jump to home directory.', 'common', 'basic', ['navigation']],
+    ['pwd', 'Print current working directory.', 'common', 'basic', ['navigation']],
+    ['mkdir -p <dir>', 'Create directory recursively if missing.', 'common', 'basic', ['filesystem']],
     ['ls -lah', 'List files with hidden entries and sizes.', 'common', 'basic', ['files']],
     ['find . -name "*.log"', 'Find files by pattern.', 'common', 'basic', ['search']],
     ['grep -R "pattern" .', 'Search recursively in files.', 'common', 'basic', ['search']],
@@ -1677,7 +1681,7 @@
       docs: 'https://git-scm.com/docs',
       entries: [...gitEntries, ...gitExtendedEntries],
       sharedFlags: SHARED.git,
-      expandFlags: true,
+      expandFlags: false,
       allowFlagCombo: true,
     }),
     ...expandEntries({
@@ -1687,27 +1691,27 @@
       docs: 'https://www.gnu.org/software/bash/manual/bash.html',
       entries: [...shellEntries, ...shellExtendedEntries],
       sharedFlags: (item) => (item.expandFlags ? SHARED.linux : []),
-      expandFlags: true,
+      expandFlags: false,
       allowFlagCombo: false,
     }),
     ...expandEntries({
       group: 'Linux Commands',
       program: 'Linux Core Utils',
       categories: ['Linux', 'Terminal / Multiplexer'],
-      docs: 'https://man7.org/linux/man-pages/',
+      docs: 'https://man7.org/linux/man-pages/index.html',
       entries: [...linuxEntries, ...linuxExtendedEntries],
       sharedFlags: SHARED.linux,
-      expandFlags: true,
+      expandFlags: false,
       allowFlagCombo: true,
     }),
     ...expandEntries({
       group: 'GCloud CLI',
       program: 'Google Cloud CLI',
       categories: ['Cloud'],
-      docs: 'https://docs.cloud.google.com/sdk/gcloud/reference',
+      docs: 'https://cloud.google.com/sdk/docs',
       entries: gcloudCore,
       sharedFlags: SHARED.gcloud,
-      expandFlags: true,
+      expandFlags: false,
       allowFlagCombo: true,
     }),
     ...expandEntries({
@@ -1717,7 +1721,7 @@
       docs: 'https://docs.aws.amazon.com/cli/latest/reference/',
       entries: awsCore,
       sharedFlags: SHARED.aws,
-      expandFlags: true,
+      expandFlags: false,
       allowFlagCombo: true,
     }),
     ...expandEntries({
@@ -1727,21 +1731,163 @@
       docs: 'https://learn.microsoft.com/en-us/cli/azure/',
       entries: azureCore,
       sharedFlags: SHARED.azure,
-      expandFlags: true,
+      expandFlags: false,
       allowFlagCombo: true,
     }),
   ];
 
+  function inferEntryType(entry) {
+    const shortcut = String(entry.shortcut || '');
+    const group = String(entry.group || '').toLowerCase();
+    if (group === 'tmux') return shortcut.startsWith('tmux ') ? 'command' : 'shortcut';
+    if (['vim', 'vs code', 'neovim', 'windows', 'macos'].includes(group)) return 'shortcut';
+    if (/^(ctrl|cmd|alt|win|shift|f\d+|esc|tab)/i.test(shortcut)) return 'shortcut';
+    if (/\+/.test(shortcut) && !shortcut.includes(' ')) return 'shortcut';
+    return 'command';
+  }
+
+  function uniqBy(items, keyFn) {
+    const map = new Map();
+    items.forEach((item) => {
+      const key = keyFn(item);
+      if (!map.has(key)) map.set(key, item);
+    });
+    return [...map.values()];
+  }
+
+  function sampleArgValue(name) {
+    const n = String(name || '').toLowerCase();
+    if (n.includes('project')) return 'my-project';
+    if (n.includes('region')) return 'us-central1';
+    if (n.includes('zone')) return 'us-central1-a';
+    if (n.includes('instance')) return 'my-instance';
+    if (n.includes('cluster')) return 'my-cluster';
+    if (n.includes('service')) return 'my-service';
+    if (n.includes('bucket')) return 'my-bucket';
+    if (n.includes('account')) return 'my-account';
+    if (n.includes('profile')) return 'default';
+    if (n.includes('branch')) return 'feature/refactor';
+    if (n.includes('file')) return 'path/to/file.txt';
+    if (n.includes('path')) return '/path/to/resource';
+    if (n.includes('name')) return 'my-name';
+    if (n.includes('id')) return '12345';
+    if (n.includes('rg')) return 'rg-main';
+    if (n.includes('vm')) return 'vm-main';
+    return 'value';
+  }
+
+  function placeholderFlags(shortcut) {
+    const flags = [];
+    const seen = new Set();
+    for (const match of String(shortcut || '').matchAll(/<([^>]+)>/g)) {
+      const raw = match[1].trim();
+      const token = `<${raw}>`;
+      const key = token.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      flags.push(flag(token, `Argument value for ${raw}.`, sampleArgValue(raw), 'intermediate', 'regular'));
+    }
+    return flags;
+  }
+
+  function commandStem(shortcut) {
+    const tokens = String(shortcut || '').trim().split(/\s+/).filter(Boolean);
+    const stem = [];
+    for (const token of tokens) {
+      if (token.startsWith('<') || token.startsWith('-')) break;
+      stem.push(token);
+    }
+    return stem.join(' ') || String(shortcut || '').trim();
+  }
+
+  function levelRank(level) {
+    const order = ['basic', 'intermediate', 'advanced'];
+    const idx = order.indexOf(String(level || '').toLowerCase());
+    return idx >= 0 ? idx : 1;
+  }
+
+  function usageRank(usage) {
+    const order = ['common', 'regular', 'rare'];
+    const idx = order.indexOf(String(usage || '').toLowerCase());
+    return idx >= 0 ? idx : 1;
+  }
+
+  function normalizeAndUnify(entries) {
+    const prepared = entries.map((entry) => {
+      const type = entry.type || inferEntryType(entry);
+      const baseShortcut = entry.baseShortcut || (type === 'command' ? commandStem(entry.shortcut) : entry.shortcut);
+      const suffix = String(entry.shortcut || '').startsWith(baseShortcut)
+        ? String(entry.shortcut || '').slice(baseShortcut.length).trim()
+        : '';
+      const autoFlags = type === 'command' ? placeholderFlags(entry.shortcut) : [];
+      const mergedFlags = uniqFlags([...(entry.flags || []), ...autoFlags]);
+      const examples = [...(entry.examples || [])];
+      if (type === 'command' && !examples.length) {
+        const code = String(entry.shortcut || '').replace(/<([^>]+)>/g, (_, raw) => sampleArgValue(raw));
+        examples.push({ label: 'Example', code });
+      }
+      const argNotes = placeholderFlags(entry.shortcut).map((f) => `${f.name}: ${f.description}`);
+
+      return {
+        ...entry,
+        type,
+        level: String(entry.level || 'intermediate').toLowerCase(),
+        usage: String(entry.usage || 'regular').toLowerCase(),
+        baseShortcut,
+        flagSuffix: suffix,
+        flags: mergedFlags,
+        examples: uniqBy(examples, (example) => String(example.code || '').trim().toLowerCase()),
+        detail: {
+          ...(entry.detail || {}),
+          notes: uniqBy([...(entry.detail?.notes || []), ...argNotes], (note) => String(note || '').toLowerCase()),
+        },
+      };
+    });
+
+    const passthrough = [];
+    const groupedCommands = new Map();
+
+    prepared.forEach((entry) => {
+      if (entry.type !== 'command') {
+        passthrough.push(entry);
+        return;
+      }
+      const stem = commandStem(entry.shortcut);
+      const key = `${entry.group}|${stem.toLowerCase()}`;
+      if (!groupedCommands.has(key)) {
+        groupedCommands.set(key, { ...entry, baseShortcut: stem, flagSuffix: String(entry.shortcut || '').slice(stem.length).trim() });
+        return;
+      }
+
+      const current = groupedCommands.get(key);
+      current.tags = uniqBy([...(current.tags || []), ...(entry.tags || [])], (tag) => String(tag).toLowerCase());
+      current.flags = uniqFlags([...(current.flags || []), ...(entry.flags || [])]);
+      current.examples = uniqBy([...(current.examples || []), ...(entry.examples || []), { label: 'Variant', code: entry.shortcut }], (example) => String(example.code || '').trim().toLowerCase());
+      current.level = levelRank(entry.level) > levelRank(current.level) ? entry.level : current.level;
+      current.usage = usageRank(entry.usage) < usageRank(current.usage) ? entry.usage : current.usage;
+      if (entry.description && entry.description !== current.description) {
+        const note = `Variant: ${entry.description}`;
+        current.detail = current.detail || {};
+        current.detail.notes = uniqBy([...(current.detail.notes || []), note], (n) => String(n).toLowerCase());
+      }
+    });
+
+    return uniqBy([...passthrough, ...groupedCommands.values()], (entry) => `${entry.group}|${entry.type}|${String(entry.shortcut || "").toLowerCase()}`);
+  }
+
+  const normalizedAll = normalizeAndUnify(all);
+
   // Mark a featured subset for the home section.
-  all.slice(0, 80).forEach((entry, idx) => {
+  normalizedAll.slice(0, 80).forEach((entry, idx) => {
     if (idx % 7 === 0) entry.featured = true;
   });
 
   window.ShortcutVaultData = {
+
     CATEGORIES,
-    BASE_SHORTCUTS: all,
+    BASE_SHORTCUTS: normalizedAll,
     META: {
-      count: all.length,
+      count: normalizedAll.length,
       generatedAt: new Date().toISOString(),
     },
   };

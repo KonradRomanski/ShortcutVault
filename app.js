@@ -11,6 +11,7 @@
   const state = {
     selectedCategory: 'All Shortcuts',
     selectedProgram: 'All Tools',
+    viewMode: 'commands',
     query: '',
     usageFilter: 'all',
     levelFilter: 'all',
@@ -34,6 +35,7 @@
 
     search: document.getElementById('search'),
     suggestions: document.getElementById('suggestions'),
+    entryModeSwitch: document.getElementById('entry-mode-switch'),
 
     groupMode: document.getElementById('group-mode'),
     usageFilter: document.getElementById('usage-filter'),
@@ -62,6 +64,7 @@
 
     entryId: document.getElementById('entry-id'),
     fieldCategory: document.getElementById('field-category'),
+    fieldType: document.getElementById('field-type'),
     fieldProgramSelect: document.getElementById('field-program-select'),
     fieldProgramCustom: document.getElementById('field-program-custom'),
     fieldShortcut: document.getElementById('field-shortcut'),
@@ -104,6 +107,7 @@
       examples: Array.isArray(entry.examples) ? entry.examples : [],
       usage: normalizeValue(entry.usage || 'regular'),
       level: normalizeValue(entry.level || 'basic'),
+      type: normalizeValue(entry.type || inferEntryType(entry)),
       baseShortcut: entry.baseShortcut || entry.shortcut || '',
       flagSuffix: entry.flagSuffix || '',
       detail: entry.detail || {
@@ -117,6 +121,25 @@
 
     state.favorites = new Set(parseJson(localStorage.getItem(STORAGE_KEYS.favorites), []));
     state.recent = parseJson(localStorage.getItem(STORAGE_KEYS.recent), []).slice(0, 20);
+  }
+
+  function inferEntryType(entry) {
+    const shortcut = String(entry?.shortcut || '').trim();
+    const group = String(entry?.group || '').toLowerCase();
+    if (group === 'tmux') return shortcut.startsWith('tmux ') ? 'command' : 'shortcut';
+    if (['vim', 'vs code', 'neovim', 'windows', 'macos'].includes(group)) return 'shortcut';
+    if (/^(ctrl|cmd|alt|win|shift|f\d+|esc|tab)/i.test(shortcut)) return 'shortcut';
+    if (/\+/.test(shortcut) && !shortcut.includes(' ')) return 'shortcut';
+    return 'command';
+  }
+
+  function matchesViewMode(entry, mode = state.viewMode) {
+    const t = normalizeValue(entry.type || inferEntryType(entry));
+    return mode === 'shortcuts' ? t === 'shortcut' : t === 'command';
+  }
+
+  function entriesInViewMode(mode = state.viewMode) {
+    return allEntries().filter((entry) => matchesViewMode(entry, mode));
   }
 
   function applyTheme(theme) {
@@ -226,6 +249,7 @@
 
   function filteredRankedEntries() {
     return allEntries()
+      .filter((entry) => matchesViewMode(entry))
       .filter((entry) => inCategory(entry, state.selectedCategory))
       .filter((entry) => (state.selectedProgram === 'All Tools' ? true : entry.group === state.selectedProgram))
       .filter((entry) => (state.usageFilter === 'all' ? true : normalizeValue(entry.usage) === normalizeValue(state.usageFilter)))
@@ -277,7 +301,7 @@
 
   function optionValuesFromEntries(key) {
     const raw = new Set();
-    allEntries().forEach((entry) => {
+    entriesInViewMode().forEach((entry) => {
       const value = String(entry[key] || '').trim().toLowerCase();
       if (value) raw.add(value);
     });
@@ -329,7 +353,9 @@
   }
 
   function fillFormSelectOptions(entry) {
-    const programs = [...new Set(allEntries().map((x) => x.group).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const selectedType = normalizeValue(entry?.type || (state.viewMode === 'shortcuts' ? 'shortcut' : 'command'));
+    el.fieldType.value = selectedType;
+    const programs = [...new Set(allEntries().filter((x) => normalizeValue(x.type || inferEntryType(x)) === selectedType).map((x) => x.group).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     const usageValues = optionValuesFromEntries('usage');
     const levelValues = optionValuesFromEntries('level');
 
@@ -379,6 +405,13 @@
     toggleCustomInput(el.fieldLevelSelect, el.fieldLevelCustom);
   }
 
+  function renderModeSwitch() {
+    const buttons = el.entryModeSwitch ? [...el.entryModeSwitch.querySelectorAll('[data-entry-mode]')] : [];
+    buttons.forEach((button) => {
+      button.classList.toggle('active', button.dataset.entryMode === state.viewMode);
+    });
+  }
+
   function grouped(rows) {
     const map = new Map();
     rows.forEach((row) => {
@@ -403,6 +436,7 @@
   function programCounts() {
     const counts = new Map();
     allEntries()
+      .filter((entry) => matchesViewMode(entry))
       .filter((entry) => inCategory(entry, state.selectedCategory))
       .forEach((entry) => {
         counts.set(entry.group, (counts.get(entry.group) || 0) + 1);
@@ -550,7 +584,7 @@
   }
 
   function renderStats(rows) {
-    const all = allEntries();
+    const all = entriesInViewMode();
     const total = all.length;
     const visible = rows.length;
     const custom = state.customEntries.length;
@@ -571,16 +605,32 @@
   }
 
   function renderCategoryNav() {
-    el.categoryNav.innerHTML = DATA.CATEGORIES.map((cat) => {
+    const modeEntries = entriesInViewMode();
+    const counts = new Map();
+    counts.set('All Shortcuts', modeEntries.length);
+    modeEntries.forEach((entry) => {
+      (entry.categories || []).forEach((category) => {
+        counts.set(category, (counts.get(category) || 0) + 1);
+      });
+    });
+
+    const visibleCategories = DATA.CATEGORIES.filter((category) => category.name === 'All Shortcuts' || (counts.get(category.name) || 0) > 0);
+
+    if (!visibleCategories.some((c) => c.name === state.selectedCategory)) {
+      state.selectedCategory = 'All Shortcuts';
+    }
+
+    el.categoryNav.innerHTML = visibleCategories.map((cat) => {
       const active = state.selectedCategory === cat.name;
+      const count = counts.get(cat.name) || 0;
       return `<button data-category="${escapeHtml(cat.name)}" class="w-full rounded-xl border px-3 py-2 text-left text-sm ${
         active
           ? 'border-indigo-400/40 bg-indigo-500/20 text-indigo-100'
           : 'border-transparent text-zinc-300 hover:bg-white/10'
-      }"><span class="mr-2">${cat.icon}</span>${escapeHtml(cat.name)}</button>`;
+      }"><span class="mr-2">${cat.icon}</span>${escapeHtml(cat.name)}<span class="float-right text-zinc-400">${count}</span></button>`;
     }).join('');
 
-    el.fieldCategory.innerHTML = DATA.CATEGORIES.filter((c) => c.name !== 'All Shortcuts')
+    el.fieldCategory.innerHTML = visibleCategories.filter((c) => c.name !== 'All Shortcuts')
       .map((c) => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`)
       .join('');
   }
@@ -647,11 +697,13 @@
     renderTopFiltersOptions();
     const rows = filteredRankedEntries();
     syncFilterControls();
+    renderModeSwitch();
     renderStats(rows);
     renderProgramNav();
     renderSuggestions(rows);
 
     const filterBits = [
+      `Mode: <span class="font-semibold text-zinc-200">${escapeHtml(labelCase(state.viewMode))}</span>`,
       `Category: <span class="font-semibold text-zinc-200">${escapeHtml(state.selectedCategory)}</span>`,
       `Program: <span class="font-semibold text-zinc-200">${escapeHtml(state.selectedProgram)}</span>`,
       `Usage: <span class="font-semibold text-zinc-200">${escapeHtml(labelCase(state.usageFilter === 'all' ? 'all' : state.usageFilter))}</span>`,
@@ -668,7 +720,8 @@
       state.selectedProgram === 'All Tools' &&
       !state.query.trim() &&
       state.usageFilter === 'all' &&
-      state.levelFilter === 'all';
+      state.levelFilter === 'all' &&
+      state.viewMode === 'commands';
 
     if (showHome) {
       const featured = featuredEntries();
@@ -735,6 +788,7 @@
       el.entryId.value = '';
       el.fieldCategory.value = state.selectedCategory === 'All Shortcuts' ? 'My Custom / Notes' : state.selectedCategory;
       fillFormSelectOptions({
+        type: state.viewMode === 'shortcuts' ? 'shortcut' : 'command',
         group: state.selectedProgram !== 'All Tools' ? state.selectedProgram : '',
         usage: state.usageFilter !== 'all' ? state.usageFilter : 'common',
         level: state.levelFilter !== 'all' ? state.levelFilter : 'basic',
@@ -852,10 +906,13 @@
       return;
     }
 
+    const payloadType = normalizeValue(el.fieldType.value || inferEntryType({ shortcut: el.fieldShortcut.value.trim(), group: programValue })) || 'command';
+
     const payload = {
       id,
       group: programValue || 'custom',
       program: programValue || 'custom',
+      type: payloadType,
       categories,
       docs: el.fieldDocs.value.trim(),
       shortcut: el.fieldShortcut.value.trim(),
@@ -973,6 +1030,7 @@
           tags: Array.isArray(entry.tags) ? entry.tags : tokenize(String(entry.tags || '')),
           usage: normalizeValue(entry.usage || 'regular'),
           level: normalizeValue(entry.level || 'basic'),
+          type: normalizeValue(entry.type || inferEntryType(entry)),
           baseShortcut: entry.baseShortcut || entry.shortcut || '',
           flagSuffix: entry.flagSuffix || '',
           flags: Array.isArray(entry.flags) ? entry.flags : [],
@@ -1157,6 +1215,28 @@
     el.levelFilter.addEventListener('change', () => {
       state.levelFilter = el.levelFilter.value;
       renderContent();
+    });
+
+    if (el.entryModeSwitch) {
+      el.entryModeSwitch.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-entry-mode]');
+        if (!button) return;
+        state.viewMode = button.dataset.entryMode;
+        state.selectedCategory = 'All Shortcuts';
+        state.selectedProgram = 'All Tools';
+        state.suggestionSuppressed = false;
+        renderCategoryNav();
+        renderContent();
+      });
+    }
+
+    el.fieldType.addEventListener('change', () => {
+      fillFormSelectOptions({
+        type: normalizeValue(el.fieldType.value),
+        group: '',
+        usage: resolvedSelectValue(el.fieldUsageSelect, el.fieldUsageCustom) || 'common',
+        level: resolvedSelectValue(el.fieldLevelSelect, el.fieldLevelCustom) || 'basic',
+      });
     });
 
     el.fieldProgramSelect.addEventListener('change', () => {
@@ -1361,6 +1441,7 @@
     initTheme();
     loadState();
     renderCategoryNav();
+    renderModeSwitch();
     bindEvents();
     setupPWA();
     renderContent();
