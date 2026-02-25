@@ -1,0 +1,213 @@
+:root {
+  --bg: #09090f;
+  --panel: rgba(18, 24, 42, 0.72);
+  --border: rgba(148, 163, 184, 0.22);
+  --text: #e4e4e7;
+  --text-soft: #94a3b8;
+}
+
+html.light {
+  --bg: #f2f5fb;
+  --panel: rgba(255, 255, 255, 0.84);
+  --border: rgba(71, 85, 105, 0.24);
+  --text: #0f172a;
+  --text-soft: #334155;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(79, 70, 229, 0.25), transparent 34%),
+    radial-gradient(circle at 85% -5%, rgba(16, 185, 129, 0.2), transparent 30%),
+    var(--bg);
+  transition: background 180ms ease, color 180ms ease;
+}
+
+.glass {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+html.light input,
+html.light select,
+html.light textarea,
+html.light #suggestions,
+html.light #export-menu,
+html.light .card {
+  background: rgba(255, 255, 255, 0.94) !important;
+  color: #0f172a !important;
+  border-color: rgba(71, 85, 105, 0.24) !important;
+}
+
+html.light .text-zinc-300,
+html.light .text-zinc-400,
+html.light .text-zinc-500 {
+  color: #334155 !important;
+}
+
+.card {
+  border: 1px solid var(--border);
+  background: rgba(17, 24, 39, 0.55);
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.card:hover,
+.card:focus-within {
+  transform: translateY(-2px) scale(1.01);
+  border-color: rgba(129, 140, 248, 0.65);
+  box-shadow: 0 12px 36px rgba(2, 6, 23, 0.42);
+}
+
+kbd.command {
+  display: block;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: clamp(1.18rem, 1.8vw, 1.68rem);
+  line-height: 1.2;
+  color: #34d399;
+  font-weight: 700;
+  word-break: break-word;
+  background: transparent;
+}
+
+.command-main {
+  color: #34d399;
+}
+
+.command-suffix {
+  margin-left: 0.35rem;
+  font-size: 0.9em;
+  color: #a1a1aa;
+  font-weight: 500;
+}
+
+html.light .command-suffix {
+  color: #64748b;
+}
+
+.program-btn {
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.79rem;
+}
+
+.program-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.program-btn.active {
+  border-color: rgba(129, 140, 248, 0.52);
+  background: rgba(99, 102, 241, 0.2);
+  color: #e0e7ff;
+}
+
+mark {
+  background: rgba(250, 204, 21, 0.34);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.modal-backdrop {
+  background: rgba(2, 6, 23, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.tag {
+  display: inline-block;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  padding: 0.12rem 0.52rem;
+  font-size: 0.67rem;
+  letter-spacing: 0.03em;
+}
+
+.tag-btn {
+  cursor: pointer;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+
+.tag-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(99, 102, 241, 0.18);
+}
+
+.copy-btn-primary {
+  padding: 0.5rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+@keyframes jumpFlash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(129, 140, 248, 0.75);
+    border-color: rgba(129, 140, 248, 0.82);
+  }
+  60% {
+    box-shadow: 0 0 0 12px rgba(129, 140, 248, 0.08);
+    border-color: rgba(129, 140, 248, 0.7);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(129, 140, 248, 0);
+    border-color: rgba(129, 140, 248, 0.5);
+  }
+}
+
+.jump-flash {
+  animation: jumpFlash 1s ease;
+}
+
+.tag-usage-common { background: rgba(16, 185, 129, 0.14); color: #6ee7b7; }
+.tag-usage-regular { background: rgba(59, 130, 246, 0.14); color: #93c5fd; }
+.tag-usage-rare { background: rgba(251, 191, 36, 0.14); color: #fcd34d; }
+.tag-level-basic { background: rgba(52, 211, 153, 0.14); color: #86efac; }
+.tag-level-intermediate { background: rgba(129, 140, 248, 0.14); color: #c7d2fe; }
+.tag-level-advanced { background: rgba(244, 114, 182, 0.14); color: #f9a8d4; }
+
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .no-print,
+  #sidebar,
+  header,
+  #toast,
+  #entry-modal,
+  #detail-modal {
+    display: none !important;
+  }
+
+  #main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .glass,
+  .card {
+    background: #fff !important;
+    border: 1px solid #d1d5db !important;
+    box-shadow: none !important;
+  }
+
+  details {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

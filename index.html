@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b1020" />
+  <meta name="description" content="ShortcutVault: searchable hub for shortcuts and command references" />
+  <title>ShortcutVault</title>
+
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+          },
+          boxShadow: {
+            glow: '0 0 0 1px rgba(99,102,241,0.35), 0 16px 42px rgba(99,102,241,0.2)',
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="mobile-overlay" class="fixed inset-0 z-30 hidden bg-black/60 no-print"></div>
+
+  <aside id="sidebar" class="fixed left-0 top-0 z-40 h-full w-80 -translate-x-full glass p-4 transition-transform duration-200 md:translate-x-0 no-print">
+    <div class="mb-5 flex items-center gap-3">
+      <div class="grid h-11 w-11 place-items-center rounded-xl bg-indigo-500/20 text-xl font-bold text-indigo-300">SV</div>
+      <div>
+        <h1 class="text-lg font-bold tracking-tight">ShortcutVault</h1>
+        <p class="text-xs text-zinc-400">Dense command memory</p>
+      </div>
+    </div>
+
+    <section class="mb-4">
+      <h2 class="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">Categories</h2>
+      <nav id="category-nav" class="space-y-1"></nav>
+    </section>
+
+    <section class="mb-4">
+      <div class="mb-2 flex items-center justify-between">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-400">Programs / Tools</h2>
+        <button id="clear-program-filter" class="rounded px-2 py-1 text-[11px] text-zinc-400 hover:bg-white/10">Clear</button>
+      </div>
+      <div id="program-nav" class="max-h-[34vh] space-y-1 overflow-y-auto pr-1 no-scrollbar"></div>
+    </section>
+
+    <div class="rounded-xl border border-indigo-400/30 bg-indigo-500/10 p-3 text-xs text-zinc-300">
+      Press <span class="rounded bg-zinc-900 px-1 py-0.5 font-mono">/</span> to focus search
+    </div>
+  </aside>
+
+  <main id="main" class="min-h-screen md:ml-80">
+    <header class="sticky top-0 z-20 border-b border-white/10 bg-black/35 px-3 py-3 backdrop-blur no-print md:px-6">
+      <div class="flex flex-wrap items-center gap-2">
+        <button id="menu-btn" class="glass rounded-lg px-3 py-2 text-sm md:hidden">☰</button>
+
+        <div class="relative min-w-[220px] flex-1">
+          <input id="search" type="text" placeholder="Search shortcuts, commands, flags, tags..." class="w-full rounded-xl border border-white/10 bg-zinc-900/85 px-4 py-3 text-sm outline-none placeholder:text-zinc-500 focus:border-indigo-400 focus:shadow-glow" />
+          <div id="suggestions" class="absolute left-0 right-0 top-[108%] z-30 hidden rounded-xl border border-white/10 bg-zinc-900/95 p-2 shadow-2xl"></div>
+        </div>
+
+        <select id="group-mode" class="glass rounded-xl px-3 py-2 text-sm">
+          <option value="tool">Group: Tool</option>
+          <option value="usage">Group: Usage</option>
+          <option value="level">Group: Level</option>
+        </select>
+
+        <select id="usage-filter" class="glass rounded-xl px-3 py-2 text-sm">
+          <option value="all">Usage: All</option>
+          <option value="common">Usage: Common</option>
+          <option value="regular">Usage: Regular</option>
+          <option value="rare">Usage: Rare</option>
+        </select>
+
+        <select id="level-filter" class="glass rounded-xl px-3 py-2 text-sm">
+          <option value="all">Level: All</option>
+          <option value="basic">Basic</option>
+          <option value="intermediate">Intermediate</option>
+          <option value="advanced">Advanced</option>
+        </select>
+
+        <button id="add-btn" class="glass rounded-xl px-3 py-2 text-sm font-semibold hover:bg-indigo-500/20">Add</button>
+
+        <div class="relative">
+          <button id="export-btn" class="glass rounded-xl px-3 py-2 text-sm font-semibold hover:bg-indigo-500/20">Export</button>
+          <div id="export-menu" class="absolute right-0 top-[108%] z-30 hidden min-w-56 rounded-xl border border-white/10 bg-zinc-900/95 p-1 text-sm shadow-2xl">
+            <button data-export="json" class="block w-full rounded-lg px-3 py-2 text-left hover:bg-indigo-500/20">Export JSON</button>
+            <button data-export="md" class="block w-full rounded-lg px-3 py-2 text-left hover:bg-indigo-500/20">Export Markdown</button>
+            <button id="import-btn" class="block w-full rounded-lg px-3 py-2 text-left hover:bg-indigo-500/20">Import JSON</button>
+          </div>
+          <input id="import-input" type="file" accept="application/json" class="hidden" />
+        </div>
+
+        <button id="print-btn" class="glass rounded-xl px-3 py-2 text-sm font-semibold hover:bg-indigo-500/20">Print/PDF</button>
+        <button id="install-btn" class="glass hidden rounded-xl px-3 py-2 text-sm font-semibold hover:bg-indigo-500/20">Install</button>
+        <button id="theme-btn" class="glass rounded-xl px-3 py-2 text-sm font-semibold hover:bg-indigo-500/20">Theme</button>
+      </div>
+    </header>
+
+    <section class="p-3 md:p-6">
+      <div id="stats" class="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5"></div>
+      <div id="active-filter" class="mb-3 text-sm text-zinc-400"></div>
+      <div id="content" class="space-y-5"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="pointer-events-none fixed bottom-4 right-4 z-50 hidden rounded-lg border border-emerald-400/40 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-200">Copied!</div>
+
+  <div id="entry-modal" class="modal-backdrop fixed inset-0 z-50 hidden items-center justify-center p-3">
+    <div class="glass max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-2xl p-5">
+      <div class="mb-4 flex items-center justify-between">
+        <h2 id="entry-modal-title" class="text-lg font-bold">Add shortcut</h2>
+        <button id="entry-modal-close" class="rounded-lg bg-zinc-800 px-2 py-1 text-sm">Esc</button>
+      </div>
+      <form id="entry-form" class="space-y-3">
+        <input id="entry-id" type="hidden" />
+
+        <label class="block text-sm">Category
+          <select id="field-category" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2"></select>
+        </label>
+
+        <label class="block text-sm">Program / Tool
+          <select id="field-program-select" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2"></select>
+          <input id="field-program-custom" type="text" placeholder="Custom program name" class="mt-2 hidden w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2" />
+        </label>
+
+        <label class="block text-sm">Shortcut / Command
+          <input id="field-shortcut" required type="text" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 font-mono" />
+        </label>
+
+        <label class="block text-sm">Description
+          <textarea id="field-description" rows="3" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2"></textarea>
+        </label>
+
+        <label class="block text-sm">Docs link (optional)
+          <input id="field-docs" type="url" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2" />
+        </label>
+
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="block text-sm">Usage
+            <select id="field-usage-select" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2">
+              <option value="common">Common</option>
+              <option value="regular">Regular</option>
+              <option value="rare">Rare</option>
+              <option value="__custom__">Custom...</option>
+            </select>
+            <input id="field-usage-custom" type="text" placeholder="e.g. occasional" class="mt-2 hidden w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2" />
+          </label>
+          <label class="block text-sm">Level
+            <select id="field-level-select" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2">
+              <option value="basic">Basic</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+              <option value="__custom__">Custom...</option>
+            </select>
+            <input id="field-level-custom" type="text" placeholder="e.g. expert" class="mt-2 hidden w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2" />
+          </label>
+        </div>
+
+        <label class="block text-sm">Tags
+          <input id="field-tags" type="text" placeholder="daily,backup" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2" />
+        </label>
+
+        <div class="flex items-center justify-end gap-2 pt-1">
+          <button type="button" id="entry-cancel" class="rounded-lg border border-white/20 px-4 py-2 text-sm">Cancel</button>
+          <button type="submit" class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="detail-modal" class="modal-backdrop fixed inset-0 z-[60] hidden items-center justify-center p-3">
+    <div class="glass max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl p-5">
+      <div class="mb-3 flex items-center justify-between">
+        <h2 class="text-lg font-bold">Command details</h2>
+        <button id="detail-close" class="rounded-lg bg-zinc-800 px-2 py-1 text-sm">Esc</button>
+      </div>
+
+      <div id="detail-body"></div>
+    </div>
+  </div>
+
+  <script src="./data.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
