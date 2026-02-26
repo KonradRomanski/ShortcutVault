@@ -22,19 +22,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-
-      - name: Cache busting - dodaj ?v=commit-sha do css/js
+      - name: Cache busting
         run: |
           VERSION=$(git rev-parse --short HEAD)
-          echo "Using version: $VERSION"
           
-          # Zakładamy, że strona jest w głównym folderze lub w /public / dist / docs
-          # Zmień ścieżkę jeśli masz inny folder (np. find ./dist ...)
-          find . -type f -name "*.html" -exec sed -i \
-            -e "s|\(href=\"[^\"]*\.css\)\"|\1?v=$VERSION\"|g" \
-            -e "s|\(src=\"[^\"]*\.js\)\"|\1?v=$VERSION\"|g" \
-            -e "s|\(href=\"[^\"]*\.ico\)\"|\1?v=$VERSION\"|g" \
-            -e "s|\(href=\"[^\"]*manifest.json\)\"|\1?v=$VERSION\"|g" {} \;
+          for file in *.css *.js; do
+            if [ -f "$file" ]; then
+              ext="${file##*.}"
+              base="${file%.*}"
+              newname="${base}.${VERSION}.${ext}"
+              mv "$file" "$newname"
+              echo "Renamed $file → $newname"
+              
+              find . -type f -name "*.html" -exec sed -i \
+                "s|${file}|${newname}|g" {} \;
+            fi
+          done
+          
+          if [ -f "manifest.json" ]; then
+            sed -i "s|\.css\"|\.css?v=$VERSION\"|g; s|\.js\"|\.js?v=$VERSION\"|g" manifest.json
+          fi
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
