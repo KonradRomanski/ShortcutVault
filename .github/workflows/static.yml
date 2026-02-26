@@ -1,0 +1,53 @@
+name: Deploy static site with cache busting
+
+on:
+  push:
+    branches: ["master"]
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      - name: Cache busting - dodaj ?v=commit-sha do css/js
+        run: |
+          VERSION=$(git rev-parse --short HEAD)
+          echo "Using version: $VERSION"
+          
+          # Zakładamy, że strona jest w głównym folderze lub w /public / dist / docs
+          # Zmień ścieżkę jeśli masz inny folder (np. find ./dist ...)
+          find . -type f -name "*.html" -exec sed -i \
+            -e "s|\(href=\"[^\"]*\.css\)\"|\1?v=$VERSION\"|g" \
+            -e "s|\(src=\"[^\"]*\.js\)\"|\1?v=$VERSION\"|g" \
+            -e "s|\(href=\"[^\"]*\.ico\)\"|\1?v=$VERSION\"|g" \
+            -e "s|\(href=\"[^\"]*manifest.json\)\"|\1?v=$VERSION\"|g" {} \;
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
