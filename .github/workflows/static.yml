@@ -1,9 +1,8 @@
-name: Deploy static site with cache busting
+name: Deploy static site with versioned cache
 
 on:
   push:
     branches: ["master"]
-
   workflow_dispatch:
 
 permissions:
@@ -22,26 +21,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Cache busting
+      - name: Stamp build version
         run: |
-          VERSION=$(git rev-parse --short HEAD)
-          
-          for file in *.css *.js; do
-            if [ -f "$file" ]; then
-              ext="${file##*.}"
-              base="${file%.*}"
-              newname="${base}.${VERSION}.${ext}"
-              mv "$file" "$newname"
-              echo "Renamed $file → $newname"
-              
-              find . -type f -name "*.html" -exec sed -i \
-                "s|${file}|${newname}|g" {} \;
-            fi
-          done
-          
-          if [ -f "manifest.json" ]; then
-            sed -i "s|\.css\"|\.css?v=$VERSION\"|g; s|\.js\"|\.js?v=$VERSION\"|g" manifest.json
-          fi
+          BUILD_VERSION="${GITHUB_SHA::8}-${GITHUB_RUN_NUMBER}"
+          echo "Using build version: ${BUILD_VERSION}"
+          sed -i "s/__BUILD_VERSION__/${BUILD_VERSION}/g" index.html sw.js
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

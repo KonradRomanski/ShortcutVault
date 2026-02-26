@@ -242,3 +242,30 @@ mark {
     page-break-inside: avoid;
   }
 }
+
+
+#topbar {
+  transition: transform 200ms ease, opacity 200ms ease;
+  will-change: transform;
+}
+
+#topbar.topbar-hidden {
+  transform: translateY(calc(-100% - 0.35rem));
+  opacity: 0.96;
+}
+
+.stat-btn {
+  width: 100%;
+  text-align: left;
+  transition: transform 120ms ease, border-color 120ms ease, background-color 120ms ease;
+}
+
+.stat-btn[data-stat-kind] {
+  cursor: pointer;
+}
+
+.stat-btn[data-stat-kind]:hover {
+  transform: translateY(-1px);
+  border-color: rgba(129, 140, 248, 0.5);
+  background: rgba(99, 102, 241, 0.16);
+}

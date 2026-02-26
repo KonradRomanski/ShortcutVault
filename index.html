@@ -8,9 +8,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#0b1020" />
   <meta name="description" content="ShortcutVault: searchable hub for shortcuts and command references" />
+  <meta name="sv-build-version" content="__BUILD_VERSION__" />
   <title>ShortcutVault</title>
 
-  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="manifest" href="./manifest.webmanifest?v=__BUILD_VERSION__" />
   <link rel="apple-touch-icon" href="./icon.svg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -33,7 +34,8 @@
       },
     };
   </script>
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=__BUILD_VERSION__" />
+  <script>window.__BUILD_VERSION__ = "__BUILD_VERSION__";</script>
 </head>
 <body>
   <div id="mobile-overlay" class="fixed inset-0 z-30 hidden bg-black/60 no-print"></div>
@@ -66,7 +68,7 @@
   </aside>
 
   <main id="main" class="min-h-screen md:ml-80">
-    <header class="sticky top-0 z-20 border-b border-white/10 bg-black/35 px-3 py-3 backdrop-blur no-print md:px-6">
+    <header id="topbar" class="sticky top-0 z-20 border-b border-white/10 bg-black/35 px-3 py-3 backdrop-blur no-print md:px-6">
       <div class="flex flex-wrap items-center gap-2">
         <button id="menu-btn" class="glass rounded-lg px-3 py-2 text-sm md:hidden">☰</button>
 
@@ -76,6 +78,7 @@
         </div>
 
         <div id="entry-mode-switch" class="mode-switch glass rounded-xl p-1">
+          <button type="button" data-entry-mode="all" class="mode-btn rounded-lg px-3 py-2 text-sm">All</button>
           <button type="button" data-entry-mode="shortcuts" class="mode-btn rounded-lg px-3 py-2 text-sm">Shortcuts</button>
           <button type="button" data-entry-mode="commands" class="mode-btn rounded-lg px-3 py-2 text-sm">Commands</button>
         </div>
@@ -208,7 +211,7 @@
     </div>
   </div>
 
-  <script src="./data.js"></script>
-  <script src="./app.js"></script>
+  <script src="./data.js?v=__BUILD_VERSION__"></script>
+  <script src="./app.js?v=__BUILD_VERSION__"></script>
 </body>
 </html>

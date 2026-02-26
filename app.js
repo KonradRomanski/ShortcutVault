@@ -11,7 +11,7 @@
   const state = {
     selectedCategory: 'All Shortcuts',
     selectedProgram: 'All Tools',
-    viewMode: 'commands',
+    viewMode: 'all',
     query: '',
     usageFilter: 'all',
     levelFilter: 'all',
@@ -28,6 +28,7 @@
     sidebar: document.getElementById('sidebar'),
     mobileOverlay: document.getElementById('mobile-overlay'),
     menuBtn: document.getElementById('menu-btn'),
+    topbar: document.getElementById('topbar'),
 
     categoryNav: document.getElementById('category-nav'),
     programNav: document.getElementById('program-nav'),
@@ -135,7 +136,10 @@
 
   function matchesViewMode(entry, mode = state.viewMode) {
     const t = normalizeValue(entry.type || inferEntryType(entry));
-    return mode === 'shortcuts' ? t === 'shortcut' : t === 'command';
+    if (mode === 'all') return true;
+    if (mode === 'shortcuts') return t === 'shortcut';
+    if (mode === 'commands') return t === 'command';
+    return true;
   }
 
   function entriesInViewMode(mode = state.viewMode) {
@@ -584,23 +588,46 @@
   }
 
   function renderStats(rows) {
-    const all = entriesInViewMode();
-    const total = all.length;
-    const visible = rows.length;
-    const custom = state.customEntries.length;
-    const advanced = all.filter((x) => normalizeValue(x.level) === 'advanced').length;
-    const programs = new Set(all.map((x) => x.group)).size;
+    const contextRows = allEntries()
+      .filter((entry) => matchesViewMode(entry))
+      .filter((entry) => inCategory(entry, state.selectedCategory))
+      .filter((entry) => (state.selectedProgram === 'All Tools' ? true : entry.group === state.selectedProgram))
+      .map((entry) => ({ entry, score: fuzzyScore(entry, state.query) }))
+      .filter((row) => (state.query ? row.score > 0 : true));
 
-    el.stats.innerHTML = [
+    const visible = rows.length;
+    const total = contextRows.length;
+    const shortcuts = contextRows.filter((x) => normalizeValue(x.entry.type || inferEntryType(x.entry)) === 'shortcut').length;
+    const commands = contextRows.filter((x) => normalizeValue(x.entry.type || inferEntryType(x.entry)) === 'command').length;
+    const levels = {
+      basic: contextRows.filter((x) => normalizeValue(x.entry.level) === 'basic').length,
+      intermediate: contextRows.filter((x) => normalizeValue(x.entry.level) === 'intermediate').length,
+      advanced: contextRows.filter((x) => normalizeValue(x.entry.level) === 'advanced').length,
+    };
+
+    const stats = [
       { label: 'Visible', value: visible },
-      { label: 'Total', value: total },
-      { label: 'Advanced', value: advanced },
-      { label: 'Programs', value: programs },
-      { label: 'Custom', value: custom },
-    ]
-      .map(
-        (s) => `<div class="glass rounded-xl p-3"><div class="text-xs uppercase tracking-wider text-zinc-400">${s.label}</div><div class="text-2xl font-extrabold">${s.value}</div></div>`,
-      )
+      { label: 'Total', value: total, kind: 'reset', statValue: 'all' },
+      { label: 'Shortcuts', value: shortcuts, kind: 'mode', statValue: 'shortcuts' },
+      { label: 'Commands', value: commands, kind: 'mode', statValue: 'commands' },
+      { label: 'Basic', value: levels.basic, kind: 'level', statValue: 'basic' },
+      { label: 'Intermediate', value: levels.intermediate, kind: 'level', statValue: 'intermediate' },
+      { label: 'Advanced', value: levels.advanced, kind: 'level', statValue: 'advanced' },
+    ];
+
+    el.stats.innerHTML = stats
+      .map((stat) => {
+        const clickable = stat.kind ? 'data-stat-kind="' + escapeHtml(stat.kind) + '" data-stat-value="' + escapeHtml(stat.statValue || '') + '"' : '';
+        const active =
+          (stat.kind === 'mode' && stat.statValue === state.viewMode) ||
+          (stat.kind === 'level' && stat.statValue === state.levelFilter) ||
+          (stat.kind === 'reset' && state.viewMode === 'all' && state.levelFilter === 'all' && state.usageFilter === 'all');
+        const classes = active ? ' border border-indigo-400/50 bg-indigo-500/15' : '';
+        return `<button type="button" class="glass stat-btn rounded-xl p-3${classes}" ${clickable}>
+          <div class="text-xs uppercase tracking-wider text-zinc-400">${escapeHtml(stat.label)}</div>
+          <div class="text-2xl font-extrabold">${escapeHtml(String(stat.value))}</div>
+        </button>`;
+      })
       .join('');
   }
 
@@ -721,7 +748,7 @@
       !state.query.trim() &&
       state.usageFilter === 'all' &&
       state.levelFilter === 'all' &&
-      state.viewMode === 'commands';
+      state.viewMode === 'all';
 
     if (showHome) {
       const featured = featuredEntries();
@@ -1259,6 +1286,40 @@
       if (event.target === el.entryModal) closeEntryModal();
     });
 
+    el.stats.addEventListener('click', (event) => {
+      const statBtn = event.target.closest('[data-stat-kind]');
+      if (!statBtn) return;
+
+      const kind = statBtn.dataset.statKind;
+      const value = statBtn.dataset.statValue;
+
+      if (kind === 'mode' && value) {
+        state.viewMode = value;
+      }
+
+      if (kind === 'level' && value) {
+        state.levelFilter = value;
+        state.groupMode = 'level';
+      }
+
+      if (kind === 'reset') {
+        state.viewMode = 'all';
+        state.usageFilter = 'all';
+        state.levelFilter = 'all';
+        state.groupMode = 'tool';
+      }
+
+      state.selectedCategory = 'All Shortcuts';
+      state.selectedProgram = 'All Tools';
+      state.suggestionSuppressed = false;
+      renderCategoryNav();
+      renderContent();
+      closeDetail();
+
+      const preferredKey = kind === 'level' ? value : null;
+      requestAnimationFrame(() => flashFirstResult(preferredKey));
+    });
+
     el.content.addEventListener('click', (event) => {
       const quick = event.target.closest('[data-quick-kind]');
       if (quick) {
@@ -1413,8 +1474,29 @@
   }
 
   function setupPWA() {
+    const buildVersion = window.__BUILD_VERSION__ || 'dev';
+    const swUrl = `./sw.js?v=${encodeURIComponent(buildVersion)}`;
+
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(() => {
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+
+      navigator.serviceWorker.register(swUrl).then((registration) => {
+        if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        registration.addEventListener('updatefound', () => {
+          const installing = registration.installing;
+          if (!installing) return;
+          installing.addEventListener('statechange', () => {
+            if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+              installing.postMessage({ type: 'SKIP_WAITING' });
+            }
+          });
+        });
+      }).catch(() => {
         // keep app usable if registration fails
       });
     }
@@ -1437,12 +1519,57 @@
     });
   }
 
+  function setupTopbarAutoHide() {
+    if (!el.topbar) return;
+
+    const mobileQuery = window.matchMedia('(max-width: 1023px)');
+    let lastY = window.scrollY || 0;
+    let ticking = false;
+
+    const show = () => el.topbar.classList.remove('topbar-hidden');
+    const hide = () => el.topbar.classList.add('topbar-hidden');
+
+    const onScroll = () => {
+      const currentY = window.scrollY || 0;
+      const delta = currentY - lastY;
+
+      if (!mobileQuery.matches) {
+        show();
+        lastY = currentY;
+        return;
+      }
+
+      if (currentY <= 8) {
+        show();
+        lastY = currentY;
+        return;
+      }
+
+      if (delta > 10 && currentY > 88) hide();
+      if (delta < -10) show();
+      lastY = currentY;
+    };
+
+    window.addEventListener('scroll', () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        onScroll();
+        ticking = false;
+      });
+    }, { passive: true });
+
+    window.addEventListener('resize', show);
+    if (typeof mobileQuery.addEventListener === 'function') mobileQuery.addEventListener('change', show);
+  }
+
   function init() {
     initTheme();
     loadState();
     renderCategoryNav();
     renderModeSwitch();
     bindEvents();
+    setupTopbarAutoHide();
     setupPWA();
     renderContent();
 
